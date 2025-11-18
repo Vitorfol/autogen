@@ -22,7 +22,7 @@ import os
 import sys
 from autogen_agentchat.agents import AssistantAgent, CodeExecutorAgent
 from autogen_agentchat.teams import RoundRobinGroupChat
-from autogen_agentchat.conditions import TextMentionTermination
+from autogen_agentchat.conditions import TextMentionTermination, MaxMessageTermination
 from autogen_agentchat.ui import Console
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.code_executors.local import LocalCommandLineCodeExecutor
@@ -155,14 +155,21 @@ async def main():
                 code_executor=code_executor,
             )
             
-            # Define condição de terminação (para quando a tarefa estiver completa)
-            termination = TextMentionTermination("TERMINATE")
+            # Define condições de terminação
+            # 1. Para quando o assistente diz "TERMINATE" (tarefa completa)
+            # 2. Para quando atingir max_turns (safety net)
+            text_termination = TextMentionTermination("TERMINATE")
+            max_turns_termination = MaxMessageTermination(max_messages=args.max_turns)
+            
+            # Usa ambas as condições (OR logic - para na primeira que acontecer)
+            from autogen_agentchat.conditions import _OrTerminationCondition
+            termination = text_termination | max_turns_termination
             
             # Cria um grupo com os dois agentes
             team = RoundRobinGroupChat(
                 participants=[assistant, executor_agent],
-                termination_condition=termination,  # Para quando encontrar "TERMINATE"
-                max_turns=args.max_turns,  # Turnos configuráveis via CLI
+                termination_condition=termination,
+                max_turns=args.max_turns,  # Mantém como fallback extra
             )
             
             # Executa a tarefa com o time
