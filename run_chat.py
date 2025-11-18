@@ -22,6 +22,7 @@ import os
 import sys
 from autogen_agentchat.agents import AssistantAgent, CodeExecutorAgent
 from autogen_agentchat.teams import RoundRobinGroupChat
+from autogen_agentchat.conditions import TextMentionTermination
 from autogen_agentchat.ui import Console
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.code_executors.local import LocalCommandLineCodeExecutor
@@ -140,7 +141,7 @@ async def main():
             assistant = AssistantAgent(
                 name="assistant",
                 model_client=model_client,
-                system_message=f"{args.system_message} When you need to write code, use markdown code blocks.",
+                system_message=f"{args.system_message} When you need to write code, use markdown code blocks. When the task is complete, reply with TERMINATE.",
             )
             
             # Cria o executor de código (configurado para manter os arquivos)
@@ -154,9 +155,13 @@ async def main():
                 code_executor=code_executor,
             )
             
+            # Define condição de terminação (para quando a tarefa estiver completa)
+            termination = TextMentionTermination("TERMINATE")
+            
             # Cria um grupo com os dois agentes
             team = RoundRobinGroupChat(
                 participants=[assistant, executor_agent],
+                termination_condition=termination,  # Para quando encontrar "TERMINATE"
                 max_turns=args.max_turns,  # Turnos configuráveis via CLI
             )
             
