@@ -80,6 +80,20 @@ Exemplos:
         help="Diretório onde o código será salvo e executado (padrão: coding)"
     )
     
+    parser.add_argument(
+        "--max-turns",
+        type=int,
+        default=20,
+        help="Número máximo de turnos de conversação entre agentes (padrão: 20)"
+    )
+    
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=120,
+        help="Timeout de execução de código em segundos (padrão: 120)"
+    )
+    
     return parser.parse_args()
 
 
@@ -107,6 +121,8 @@ async def main():
     if args.execute_code:
         print(f"⚙️  Execução de código: Habilitada")
         print(f"📁 Diretório de trabalho: {args.work_dir}")
+        print(f"🔄 Max turnos: {args.max_turns}")
+        print(f"⏱️  Timeout: {args.timeout}s")
     print()
     
     # Crie o cliente do modelo
@@ -131,6 +147,7 @@ async def main():
             code_executor = LocalCommandLineCodeExecutor(
                 work_dir=args.work_dir,
                 cleanup_temp_files=False,  # NÃO deletar arquivos após execução
+                timeout=args.timeout,  # Timeout configurável via CLI
             )
             executor_agent = CodeExecutorAgent(
                 name="code_executor",
@@ -140,7 +157,7 @@ async def main():
             # Cria um grupo com os dois agentes
             team = RoundRobinGroupChat(
                 participants=[assistant, executor_agent],
-                max_turns=10,
+                max_turns=args.max_turns,  # Turnos configuráveis via CLI
             )
             
             # Executa a tarefa com o time
