@@ -10,6 +10,9 @@ Exemplos de uso:
   export OPENAI_API_KEY=sk-xxx
   python run_chat.py --task "Explain quantum computing" --model gpt-4o-mini
   
+  # Com execução de código:
+  python run_chat.py --task "Create a Python script that calculates fibonacci" --execute-code
+  
   # Modo interativo (pergunta as informações):
   python run_chat.py
 """
@@ -17,8 +20,11 @@ import asyncio
 import argparse
 import os
 import sys
-from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.agents import AssistantAgent, CodeExecutorAgent
+from autogen_agentchat.teams import RoundRobinGroupChat
+from autogen_agentchat.ui import Console
 from autogen_ext.models.openai import OpenAIChatCompletionClient
+from autogen_ext.code_executors.local import LocalCommandLineCodeExecutor
 
 
 def get_args():
@@ -61,6 +67,19 @@ Exemplos:
         help="Mensagem de sistema para o assistente"
     )
     
+    parser.add_argument(
+        "--execute-code", "-e",
+        action="store_true",
+        help="Habilitar execução automática de código gerado"
+    )
+    
+    parser.add_argument(
+        "--work-dir", "-w",
+        type=str,
+        default="coding",
+        help="Diretório onde o código será salvo e executado (padrão: coding)"
+    )
+    
     return parser.parse_args()
 
 
@@ -84,7 +103,11 @@ async def main():
             sys.exit(1)
     
     print(f"\n🚀 Iniciando tarefa: {args.task}")
-    print(f"🤖 Modelo: {args.model}\n")
+    print(f"🤖 Modelo: {args.model}")
+    if args.execute_code:
+        print(f"⚙️  Execução de código: Habilitada")
+        print(f"📁 Diretório de trabalho: {args.work_dir}")
+    print()
     
     # Crie o cliente do modelo
     model_client = OpenAIChatCompletionClient(
@@ -92,25 +115,65 @@ async def main():
         api_key=args.api_key,
     )
     
-    # Cria o Agente Assistente
-    assistant = AssistantAgent(
-        name="assistant",
-        model_client=model_client,
-        system_message=args.system_message,
-    )
-    
     try:
-        # Executa a tarefa e obtém o resultado
-        result = await assistant.run(task=args.task)
-        
-        # Imprime as mensagens da conversa
-        print("\n" + "="*60)
-        print("📋 RESULTADO")
-        print("="*60)
-        for message in result.messages:
-            print(f"\n[{message.source.upper()}]:")
-            print(message.content)
-            print("-" * 60)
+        if args.execute_code:
+            # Modo com execução de código
+            print("🔧 Configurando agentes para execução de código...\n")
+            
+            # Cria o assistente que gera código
+            assistant = AssistantAgent(
+                name="assistant",
+                model_client=model_client,
+                system_message=f"{args.system_message} When you need to write code, use markdown code blocks.",
+            )
+            
+            # Cria o executor de código (configurado para manter os arquivos)
+            code_executor = LocalCommandLineCodeExecutor(
+                work_dir=args.work_dir,
+                cleanup_temp_files=False,  # NÃO deletar arquivos após execução
+            )
+            executor_agent = CodeExecutorAgent(
+                name="code_executor",
+                code_executor=code_executor,
+            )
+            
+            # Cria um grupo com os dois agentes
+            team = RoundRobinGroupChat(
+                participants=[assistant, executor_agent],
+                max_turns=10,
+            )
+            
+            # Executa a tarefa com o time
+            print("="*60)
+            print("💬 CONVERSAÇÃO")
+            print("="*60 + "\n")
+            
+            stream = team.run_stream(task=args.task)
+            await Console(stream)
+            
+            print("\n" + "="*60)
+            print(f"✅ Código salvo e executado em: {args.work_dir}/")
+            print("="*60)
+            
+        else:
+            # Modo simples sem execução de código
+            assistant = AssistantAgent(
+                name="assistant",
+                model_client=model_client,
+                system_message=args.system_message,
+            )
+            
+            # Executa a tarefa e obtém o resultado
+            result = await assistant.run(task=args.task)
+            
+            # Imprime as mensagens da conversa
+            print("\n" + "="*60)
+            print("📋 RESULTADO")
+            print("="*60)
+            for message in result.messages:
+                print(f"\n[{message.source.upper()}]:")
+                print(message.content)
+                print("-" * 60)
         
     except Exception as e:
         print(f"\n❌ Erro ao executar tarefa: {e}")
