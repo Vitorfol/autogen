@@ -162,7 +162,6 @@ async def main():
             max_turns_termination = MaxMessageTermination(max_messages=args.max_turns)
             
             # Usa ambas as condições (OR logic - para na primeira que acontecer)
-            from autogen_agentchat.conditions import _OrTerminationCondition
             termination = text_termination | max_turns_termination
             
             # Cria um grupo com os dois agentes
