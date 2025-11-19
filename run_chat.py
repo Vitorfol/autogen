@@ -141,7 +141,7 @@ async def main():
             assistant = AssistantAgent(
                 name="assistant",
                 model_client=model_client,
-                system_message=f"{args.system_message} When you need to write code, use markdown code blocks. When the task is complete, reply with TERMINATE.",
+                system_message=f"{args.system_message} You MUST write executable code using markdown code blocks (```python). The code will be automatically executed. Wait to see the execution result before saying TERMINATE. Only reply with TERMINATE after you have seen the code execution output.",
             )
             
             # Cria o executor de código (configurado para manter os arquivos)
